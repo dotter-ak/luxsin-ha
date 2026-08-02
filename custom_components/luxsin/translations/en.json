@@ -1,0 +1,19 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Luxsin X8/X9 Amplifier",
+        "description": "Enter the IP address or hostname of your Luxsin amplifier.",
+        "data": {
+          "host": "Host"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the device. Check the IP address and that it is powered on and reachable."
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  }
+}

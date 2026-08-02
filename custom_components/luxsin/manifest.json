@@ -1,0 +1,13 @@
+{
+  "domain": "luxsin",
+  "name": "Luxsin X8/X9 Amplifier",
+  "codeowners": ["@dotter-ak"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/dotter-ak/luxsin-ha",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/dotter-ak/luxsin-ha/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
