@@ -1,8 +1,15 @@
 """DataUpdateCoordinator for the Luxsin X8/X9 integration.
 
 Polls /msgCount (cheap) on a fixed interval. The full status and PEQ
-presets (/dev/info.cgi?action=sync) are only fetched when the counter
-changes.
+presets (/dev/info.cgi?action=sync) are fetched whenever the counter
+changes, and also unconditionally every FORCE_FULL_SYNC_EVERY polls, as a
+safety net: the firmware's own comment for msgCount says it's incremented
+"after state changes" by its own sendData() calls, but not every code
+path in the firmware is guaranteed to call that increment (e.g. selecting
+a PEQ profile directly on the device has been observed to sometimes leave
+msgCount unchanged). Without this fallback, such a field could stay
+stale in Home Assistant indefinitely, until some other action that *does*
+bump msgCount happens to also trigger a full sync.
 """
 from __future__ import annotations
 
@@ -17,6 +24,12 @@ from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, normalize_model_key
 
 _LOGGER = logging.getLogger(__name__)
 
+# How many /msgCount polls between forced full syncs, regardless of
+# whether the counter changed. At DEFAULT_SCAN_INTERVAL=3s, 20 polls is
+# about once a minute - frequent enough to catch a missed msgCount bump
+# without turning every poll into a full sync.
+FORCE_FULL_SYNC_EVERY = 20
+
 
 class LuxsinCoordinator(DataUpdateCoordinator[LuxsinStatus]):
     """Coordinator polling a single Luxsin X8 or X9 amplifier."""
@@ -30,6 +43,7 @@ class LuxsinCoordinator(DataUpdateCoordinator[LuxsinStatus]):
         )
         self.client = client
         self._last_msg_count: int | None = None
+        self._polls_since_full_sync = 0
 
     @property
     def model_key(self) -> str:
@@ -40,11 +54,18 @@ class LuxsinCoordinator(DataUpdateCoordinator[LuxsinStatus]):
     async def _async_update_data(self) -> LuxsinStatus:
         try:
             msg_count = await self.client.async_get_msg_count()
-            if self.data is not None and msg_count == self._last_msg_count:
-                # Nothing changed on the device since the last full fetch.
+            counter_changed = self.data is None or msg_count != self._last_msg_count
+            due_for_forced_sync = self._polls_since_full_sync >= FORCE_FULL_SYNC_EVERY
+
+            if not counter_changed and not due_for_forced_sync:
+                # Nothing changed on the device since the last full fetch,
+                # and we're not yet due for a safety-net sync.
+                self._polls_since_full_sync += 1
                 return self.data
+
             status = await self.client.async_get_full_status()
             self._last_msg_count = msg_count
+            self._polls_since_full_sync = 0
             return status
         except LuxsinError as err:
             raise UpdateFailed(str(err)) from err

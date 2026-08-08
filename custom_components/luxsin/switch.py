@@ -50,6 +50,12 @@ async def async_setup_entry(
     candidates: list[tuple[str, type[SwitchEntity]]] = [
         ("dsp_enable", LuxsinDspSwitch),
         ("peqEnable", LuxsinPeqEnableSwitch),
+        ("audio_enable", LuxsinEffectsSwitch),
+        ("effect_enable", LuxsinStyleEnableSwitch),
+        ("width_enable", LuxsinStereoWidthEnableSwitch),
+        ("crossfeed_enable", LuxsinCrossfeedEnableSwitch),
+        ("color_enable", LuxsinToneEnableSwitch),
+        ("loudness_enable", LuxsinLoudnessEnableSwitch),
     ]
     entities = []
     for field, cls in candidates:
@@ -119,9 +125,99 @@ class LuxsinPeqEnableSwitch(_LuxsinParamSwitch):
     Separate from the "PEQ Profile" select entity (select.py), which
     picks *which* saved preset is active - this just turns PEQ
     processing on/off entirely, regardless of which preset is selected.
+
+    Exposed as a regular Controls entity (no entity_category) rather than
+    Configuration, since it's a day-to-day on/off toggle rather than a
+    setup/config-time setting.
     """
 
     _param = "peqEnable"
     _attr_name = "PEQ"
     _attr_icon = "mdi:equalizer"
+
+
+class LuxsinEffectsSwitch(_LuxsinParamSwitch):
+    """Effects: master on/off for the whole DSP audio-processing chain
+    (Style, Stereo width, Crossfeed, Tone, Loudness).
+
+    Turning this off makes every entity in that group unavailable, since
+    all of them declare "audio_enable" as a parent in `_parent_params`
+    (see entity.py).
+    """
+
+    _param = "audio_enable"
+    _attr_name = "Effects"
+    _attr_icon = "mdi:tune-variant"
     _attr_entity_category = EntityCategory.CONFIG
+
+
+class LuxsinStyleEnableSwitch(_LuxsinParamSwitch):
+    """Style: enable/disable the effect_value EQ preset.
+
+    Child of Effects (audio_enable); its own child is the Style value
+    select entity (effect_value, see select.py).
+    """
+
+    _param = "effect_enable"
+    _attr_name = "Style"
+    _attr_icon = "mdi:tune"
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable",)
+
+
+class LuxsinStereoWidthEnableSwitch(_LuxsinParamSwitch):
+    """Stereo width: enable/disable the width_value soundstage effect.
+
+    Child of Effects (audio_enable); its own child is the Stereo width
+    value number entity (width_value, see number.py).
+    """
+
+    _param = "width_enable"
+    _attr_name = "Stereo width"
+    _attr_icon = "mdi:arrow-expand-horizontal"
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable",)
+
+
+class LuxsinCrossfeedEnableSwitch(_LuxsinParamSwitch):
+    """Crossfeed: enable/disable the crossfeed_value BS2B preset.
+
+    Child of Effects (audio_enable); its own child is the Crossfeed value
+    select entity (crossfeed_value, see select.py).
+    """
+
+    _param = "crossfeed_enable"
+    _attr_name = "Crossfeed"
+    _attr_icon = "mdi:swap-horizontal"
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable",)
+
+
+class LuxsinToneEnableSwitch(_LuxsinParamSwitch):
+    """Tone: enable/disable the bass/mid/treble color EQ.
+
+    Child of Effects (audio_enable); its children are the Bass/Mid/Treble
+    number entities (color_bass_gain/color_mid_gain/color_treble_gain, see
+    number.py).
+    """
+
+    _param = "color_enable"
+    _attr_name = "Tone"
+    _attr_icon = "mdi:equalizer-outline"
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable",)
+
+
+class LuxsinLoudnessEnableSwitch(_LuxsinParamSwitch):
+    """Loudness: enable/disable the loudness compensation curve.
+
+    Child of Effects (audio_enable); its children are the Threshold/Bass/
+    Treble number entities (loudness_threshold_gain/loudness_bass_gain/
+    loudness_treble_gain, see number.py).
+    """
+
+    _param = "loudness_enable"
+    _attr_name = "Loudness"
+    _attr_icon = "mdi:volume-vibrate"
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable",)

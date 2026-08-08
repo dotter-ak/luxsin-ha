@@ -60,7 +60,14 @@ Or manually:
 3. **Restart Home Assistant**.
 
 ## Changelog
-- v 0.1.0 - Initial Release
+- v 0.2.0
+  - Added Effects controls. Tested on X8; should also work on X9 based on the 
+    documented API, but hasn't been verified on real X9 hardware.
+  - The integration now forces a full status refresh once a minute, even if
+    the device's own change counter (`msgCount`) hasn't moved.
+  - Minor fixes
+- v 0.1.0
+    - Initial Release
 
 ## Support
 

@@ -27,7 +27,7 @@ import logging
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
+from homeassistant.const import CONF_HOST, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -36,9 +36,21 @@ from .const import (
     BALANCE_MIN_DB,
     BALANCE_SCALE,
     BALANCE_STEP_DB,
+    COLOR_GAIN_MAX_DB,
+    COLOR_GAIN_MIN_DB,
+    COLOR_GAIN_SCALE,
+    COLOR_GAIN_STEP_DB,
     DOMAIN,
+    LOUDNESS_GAIN_MAX_DB,
+    LOUDNESS_GAIN_MIN_DB,
+    LOUDNESS_GAIN_SCALE,
+    LOUDNESS_GAIN_STEP_DB,
+    LOUDNESS_THRESHOLD_MAX_DB,
     SCREEN_BRIGHTNESS_MAX,
     SCREEN_BRIGHTNESS_MIN,
+    WIDTH_MAX,
+    WIDTH_MIN,
+    loudness_threshold_min_for,
 )
 from .coordinator import LuxsinCoordinator
 from .entity import LuxsinEntity, has_fields
@@ -64,6 +76,49 @@ async def async_setup_entry(
         entities.append(LuxsinScreenBrightnessNumber(coordinator, entry))
     else:
         _LOGGER.debug("screenLight field missing on this device - number entity not created")
+
+    if has_fields(raw, "width_value"):
+        entities.append(LuxsinStereoWidthNumber(coordinator, entry))
+    else:
+        _LOGGER.debug("width_value field missing on this device - number entity not created")
+
+    if has_fields(raw, "color_bass_gain"):
+        entities.append(LuxsinColorGainNumber(coordinator, entry, "color_bass_gain", "Tone Bass"))
+    else:
+        _LOGGER.debug("color_bass_gain field missing on this device - number entity not created")
+
+    if has_fields(raw, "color_mid_gain"):
+        entities.append(LuxsinColorGainNumber(coordinator, entry, "color_mid_gain", "Tone Mid"))
+    else:
+        _LOGGER.debug("color_mid_gain field missing on this device - number entity not created")
+
+    if has_fields(raw, "color_treble_gain"):
+        entities.append(LuxsinColorGainNumber(coordinator, entry, "color_treble_gain", "Tone Treble"))
+    else:
+        _LOGGER.debug("color_treble_gain field missing on this device - number entity not created")
+
+    if has_fields(raw, "loudness_threshold_gain"):
+        entities.append(LuxsinLoudnessThresholdNumber(coordinator, entry))
+    else:
+        _LOGGER.debug(
+            "loudness_threshold_gain field missing on this device - number entity not created"
+        )
+
+    if has_fields(raw, "loudness_bass_gain"):
+        entities.append(
+            LuxsinLoudnessGainNumber(coordinator, entry, "loudness_bass_gain", "Loudness Bass")
+        )
+    else:
+        _LOGGER.debug("loudness_bass_gain field missing on this device - number entity not created")
+
+    if has_fields(raw, "loudness_treble_gain"):
+        entities.append(
+            LuxsinLoudnessGainNumber(coordinator, entry, "loudness_treble_gain", "Loudness Treble")
+        )
+    else:
+        _LOGGER.debug(
+            "loudness_treble_gain field missing on this device - number entity not created"
+        )
 
     if entities:
         async_add_entities(entities)
@@ -129,3 +184,148 @@ class LuxsinScreenBrightnessNumber(LuxsinEntity, NumberEntity):
         await self.coordinator.async_apply_param(
             self._param, int(SCREEN_BRIGHTNESS_MAX - value)
         )
+
+
+class LuxsinStereoWidthNumber(LuxsinEntity, NumberEntity):
+    """Stereo width (width_value), raw 0..100, no unit conversion.
+
+    Child of Stereo width (width_enable), which is itself a child of
+    Effects (audio_enable) - unavailable unless both are on.
+    """
+
+    _param = "width_value"
+    _attr_name = "Stereo width value"
+    _attr_icon = "mdi:arrow-expand-horizontal"
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_min_value = WIDTH_MIN
+    _attr_native_max_value = WIDTH_MAX
+    _attr_native_step = 1
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable", "width_enable")
+
+    def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_{self._param}"
+
+    @property
+    def native_value(self) -> float | None:
+        raw = self.coordinator.data.raw if self.coordinator.data else None
+        if raw is None or raw.get(self._param) is None:
+            return None
+        return raw[self._param]
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_apply_param(self._param, round(value))
+
+
+class LuxsinColorGainNumber(LuxsinEntity, NumberEntity):
+    """One tone/color band (color_bass_gain / color_mid_gain /
+    color_treble_gain), in dB (raw field is integer tenths of a dB,
+    -100..100).
+
+    Child of Tone (color_enable), which is itself a child of Effects
+    (audio_enable) - unavailable unless both are on.
+    """
+
+    _attr_icon = "mdi:equalizer-outline"
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_unit_of_measurement = "dB"
+    _attr_native_min_value = COLOR_GAIN_MIN_DB
+    _attr_native_max_value = COLOR_GAIN_MAX_DB
+    _attr_native_step = COLOR_GAIN_STEP_DB
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable", "color_enable")
+
+    def __init__(
+        self, coordinator: LuxsinCoordinator, entry: ConfigEntry, param: str, label: str
+    ) -> None:
+        self._param = param
+        self._attr_name = label
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_{self._param}"
+
+    @property
+    def native_value(self) -> float | None:
+        raw = self.coordinator.data.raw if self.coordinator.data else None
+        if raw is None or raw.get(self._param) is None:
+            return None
+        return raw[self._param] / COLOR_GAIN_SCALE
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_apply_param(self._param, round(value * COLOR_GAIN_SCALE))
+
+
+class LuxsinLoudnessGainNumber(LuxsinEntity, NumberEntity):
+    """One loudness band (loudness_bass_gain / loudness_treble_gain), in dB
+    (raw field is integer tenths of a dB, 0..100).
+
+    Child of Loudness (loudness_enable), which is itself a child of
+    Effects (audio_enable) - unavailable unless both are on.
+    """
+
+    _attr_icon = "mdi:volume-vibrate"
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_unit_of_measurement = "dB"
+    _attr_native_min_value = LOUDNESS_GAIN_MIN_DB
+    _attr_native_max_value = LOUDNESS_GAIN_MAX_DB
+    _attr_native_step = LOUDNESS_GAIN_STEP_DB
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable", "loudness_enable")
+
+    def __init__(
+        self, coordinator: LuxsinCoordinator, entry: ConfigEntry, param: str, label: str
+    ) -> None:
+        self._param = param
+        self._attr_name = label
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_{self._param}"
+
+    @property
+    def native_value(self) -> float | None:
+        raw = self.coordinator.data.raw if self.coordinator.data else None
+        if raw is None or raw.get(self._param) is None:
+            return None
+        return raw[self._param] / LOUDNESS_GAIN_SCALE
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_apply_param(self._param, round(value * LOUDNESS_GAIN_SCALE))
+
+
+class LuxsinLoudnessThresholdNumber(LuxsinEntity, NumberEntity):
+    """Loudness threshold (loudness_threshold_gain), in dB - the raw value
+    IS the dB value directly (not scaled).
+
+    Range differs by model: X8-API-README.md documents -40..0,
+    X9-API-README.md documents -30..0.
+
+    Child of Loudness (loudness_enable), which is itself a child of
+    Effects (audio_enable) - unavailable unless both are on.
+    """
+
+    _param = "loudness_threshold_gain"
+    _attr_name = "Loudness Threshold"
+    _attr_icon = "mdi:volume-vibrate"
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_unit_of_measurement = "dB"
+    _attr_native_max_value = LOUDNESS_THRESHOLD_MAX_DB
+    _attr_native_step = 1
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable", "loudness_enable")
+
+    def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_{self._param}"
+
+    @property
+    def native_min_value(self) -> float:
+        return loudness_threshold_min_for(self.coordinator.model_key)
+
+    @property
+    def native_value(self) -> float | None:
+        raw = self.coordinator.data.raw if self.coordinator.data else None
+        if raw is None or raw.get(self._param) is None:
+            return None
+        return raw[self._param]
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_apply_param(self._param, round(value))

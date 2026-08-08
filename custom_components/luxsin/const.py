@@ -88,3 +88,73 @@ BALANCE_SCALE = 10  # raw = round(dB * BALANCE_SCALE)
 # names (e.g. "Low/Medium/High") that aren't documented.
 SCREEN_BRIGHTNESS_MIN = 0
 SCREEN_BRIGHTNESS_MAX = 2
+
+# --------------------------------------------------------------------------
+# Effects group (audio_enable and everything under it). All ranges below
+# are confirmed identical for both models by X8-API-README.md /
+# X9-API-README.md, except loudness_threshold_gain (see below).
+# --------------------------------------------------------------------------
+
+# Style (effect_value, 0..15). Neither document names the 16 presets
+# individually; these are the standard EQ preset names used by the
+# product UI.
+EFFECT_STYLE_NAMES = [
+    "Classical",
+    "Dance",
+    "Popular",
+    "Reggae",
+    "Live",
+    "Rock",
+    "Soft",
+    "Electronic",
+    "Club",
+    "Full bass",
+    "Full treble",
+    "Headphone",
+    "Hall",
+    "Party",
+    "Ska",
+    "Slow rock",
+]
+
+# Crossfeed (crossfeed_value). Both documents list 3 named BS2B presets
+# (0..2); X9-API-README.md additionally defines a 4th "Custom" preset (3),
+# driven by crossfeed_custom_fc/crossfeed_custom_gain, which isn't exposed
+# as a select option here.
+CROSSFEED_NAMES = [
+    "BS2B default (700 Hz, 4.5 dB)",
+    "BS2B popular (700 Hz, 6 dB)",
+    "BS2B relax (650 Hz, 9.5 dB)",
+]
+
+# Stereo width (width_value): raw 0..100, plain integer - the firmware
+# maps it internally as 0.02 * value for the DSP, but that scaling isn't
+# user-facing.
+WIDTH_MIN = 0
+WIDTH_MAX = 100
+
+# Tone/color gain (color_bass_gain/color_mid_gain/color_treble_gain): raw
+# -100..100, integer tenths of dB, displayed -10.0..+10.0 dB.
+COLOR_GAIN_MIN_DB = -10.0
+COLOR_GAIN_MAX_DB = 10.0
+COLOR_GAIN_STEP_DB = 0.1
+COLOR_GAIN_SCALE = 10  # raw = round(dB * COLOR_GAIN_SCALE)
+
+# Loudness bass/treble gain (loudness_bass_gain/loudness_treble_gain): raw
+# 0..100, integer tenths of dB, displayed 0.0..10.0 dB.
+LOUDNESS_GAIN_MIN_DB = 0.0
+LOUDNESS_GAIN_MAX_DB = 10.0
+LOUDNESS_GAIN_STEP_DB = 0.1
+LOUDNESS_GAIN_SCALE = 10  # raw = round(dB * LOUDNESS_GAIN_SCALE)
+
+# Loudness threshold (loudness_threshold_gain): raw value IS the dB value
+# directly (not scaled). Range differs by model:
+# X8-API-README.md: -40..0. X9-API-README.md: -30..0.
+LOUDNESS_THRESHOLD_MAX_DB = 0
+LOUDNESS_THRESHOLD_MIN_DB_BY_MODEL: dict[str, int] = {"x8": -40, "x9": -30}
+
+
+def loudness_threshold_min_for(model_key: str) -> int:
+    return LOUDNESS_THRESHOLD_MIN_DB_BY_MODEL.get(
+        model_key, LOUDNESS_THRESHOLD_MIN_DB_BY_MODEL[DEFAULT_MODEL_KEY]
+    )

@@ -26,11 +26,11 @@ import logging
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
+from homeassistant.const import CONF_HOST, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, OUTPUT_NAMES, input_names_for
+from .const import CROSSFEED_NAMES, DOMAIN, EFFECT_STYLE_NAMES, OUTPUT_NAMES, input_names_for
 from .coordinator import LuxsinCoordinator
 from .entity import LuxsinEntity, has_fields
 
@@ -62,10 +62,17 @@ async def async_setup_entry(
     else:
         _LOGGER.debug("vu field missing on this device - select entity not created")
 
-    if coordinator.data and coordinator.data.peq_profiles:
-        entities.append(LuxsinPeqSelect(coordinator, entry))
+    entities.append(LuxsinPeqSelect(coordinator, entry))
+
+    if has_fields(raw, "effect_value"):
+        entities.append(LuxsinEffectStyleSelect(coordinator, entry))
     else:
-        _LOGGER.debug("No PEQ presets returned by this device - select entity not created")
+        _LOGGER.debug("effect_value field missing on this device - select entity not created")
+
+    if has_fields(raw, "crossfeed_value"):
+        entities.append(LuxsinCrossfeedSelect(coordinator, entry))
+    else:
+        _LOGGER.debug("crossfeed_value field missing on this device - select entity not created")
 
     if entities:
         async_add_entities(entities)
@@ -171,10 +178,23 @@ class LuxsinVuStyleSelect(LuxsinEntity, SelectEntity):
 
 
 class LuxsinPeqSelect(LuxsinEntity, SelectEntity):
-    """Choose a PEQ preset saved on the device."""
+    """Choose a PEQ preset saved on the device.
+
+    Always created, even if the device currently has zero saved presets -
+    `options` is then simply an empty list and `current_option` is None,
+    rather than the entity not existing at all. This avoids depending on
+    whatever the device's preset list happens to look like at the moment
+    Home Assistant starts up: presets added later (directly on the
+    device) show up here automatically on the next full sync, without
+    needing to reload the integration.
+
+    Child of the PEQ switch (peqEnable, switch.py) - unavailable while
+    PEQ processing is turned off.
+    """
 
     _attr_name = "PEQ Profile"
     _attr_icon = "mdi:equalizer"
+    _parent_params = ("peqEnable",)
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
@@ -208,3 +228,71 @@ class LuxsinPeqSelect(LuxsinEntity, SelectEntity):
                 await self.coordinator.async_apply_peq_select(i)
                 return
         _LOGGER.warning("Unknown PEQ profile: %s", option)
+
+
+class LuxsinEffectStyleSelect(LuxsinEntity, SelectEntity):
+    """Choose the effect_value EQ preset (0..15).
+
+    Child of Style (effect_enable), which is itself a child of Effects
+    (audio_enable) - unavailable unless both are on.
+    """
+
+    _attr_name = "Style value"
+    _attr_icon = "mdi:music-note-eighth"
+    _attr_options = EFFECT_STYLE_NAMES
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable", "effect_enable")
+
+    def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_effect_value_select"
+
+    @property
+    def current_option(self) -> str | None:
+        raw = self.coordinator.data.raw if self.coordinator.data else None
+        if raw is None or raw.get("effect_value") is None:
+            return None
+        idx = raw["effect_value"]
+        if 0 <= idx < len(EFFECT_STYLE_NAMES):
+            return EFFECT_STYLE_NAMES[idx]
+        return f"Style {idx}"  # valid on the wire, but outside the known enum
+
+    async def async_select_option(self, option: str) -> None:
+        if option not in EFFECT_STYLE_NAMES:
+            _LOGGER.warning("Unknown Luxsin effect style: %s", option)
+            return
+        await self.coordinator.async_apply_param("effect_value", EFFECT_STYLE_NAMES.index(option))
+
+
+class LuxsinCrossfeedSelect(LuxsinEntity, SelectEntity):
+    """Choose the crossfeed_value BS2B preset (0..2).
+
+    Child of Crossfeed (crossfeed_enable), which is itself a child of
+    Effects (audio_enable) - unavailable unless both are on.
+    """
+
+    _attr_name = "Crossfeed value"
+    _attr_icon = "mdi:swap-horizontal"
+    _attr_options = CROSSFEED_NAMES
+    _attr_entity_category = EntityCategory.CONFIG
+    _parent_params = ("audio_enable", "crossfeed_enable")
+
+    def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_crossfeed_value_select"
+
+    @property
+    def current_option(self) -> str | None:
+        raw = self.coordinator.data.raw if self.coordinator.data else None
+        if raw is None or raw.get("crossfeed_value") is None:
+            return None
+        idx = raw["crossfeed_value"]
+        if 0 <= idx < len(CROSSFEED_NAMES):
+            return CROSSFEED_NAMES[idx]
+        return f"Crossfeed {idx}"  # e.g. X9's "Custom" (3), not exposed as an option
+
+    async def async_select_option(self, option: str) -> None:
+        if option not in CROSSFEED_NAMES:
+            _LOGGER.warning("Unknown Luxsin crossfeed preset: %s", option)
+            return
+        await self.coordinator.async_apply_param("crossfeed_value", CROSSFEED_NAMES.index(option))
