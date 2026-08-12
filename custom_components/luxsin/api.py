@@ -96,8 +96,12 @@ def _decode_payload(raw_body: bytes) -> dict[str, Any]:
     except (ValueError, binascii.Error) as err:
         raise LuxsinProtocolError(f"base64 decode failed: {err}") from err
 
+    # Some X9 firmware versions return invalid UTF-8 in optional PEQ profile
+    # metadata (for example, a malformed ``brand`` value). Preserve the valid
+    # status data and replace only those undecodable characters instead of
+    # preventing the whole integration from starting.
     try:
-        data = json.loads(json_bytes)
+        data = json.loads(json_bytes.decode("utf-8", errors="replace"))
     except json.JSONDecodeError as err:
         raise LuxsinProtocolError(f"invalid JSON: {err}") from err
 

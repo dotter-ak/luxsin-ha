@@ -99,6 +99,22 @@ def test_decode_handles_missing_base64_padding() -> None:
     assert _decode_payload(wire) == payload
 
 
+def test_decode_replaces_invalid_utf8_in_peq_metadata() -> None:
+    """Malformed optional PEQ text must not prevent device setup.
+
+    Captured from a Luxsin X9: the ``brand`` value of one saved PEQ profile
+    contained byte 0xb8, which is not valid UTF-8.
+    """
+    json_bytes = b'{"volume":42,"peq":[{"name":"Profile","brand":"\xb8"}]}'
+    std_b64 = base64.b64encode(json_bytes).decode()
+    custom_b64 = std_b64.translate(_ENCODE_TABLE)
+    wire = gzip.compress(custom_b64.encode())
+
+    data = _decode_payload(wire)
+    assert data["volume"] == 42
+    assert data["peq"][0]["brand"] == "\ufffd"
+
+
 # ---------------------------------------------------------------------------
 # Regression fixtures: real captures from a live Luxsin X8.
 #

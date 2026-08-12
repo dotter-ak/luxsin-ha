@@ -60,6 +60,8 @@ Or manually:
 3. **Restart Home Assistant**.
 
 ## Changelog
+- v 0.2.1
+  - Prevented invalid text in PEQ profile metadata from blocking setup.
 - v 0.2.0
   - Added Effects controls. Tested on X8; should also work on X9 based on the 
     documented API, but hasn't been verified on real X9 hardware.
