@@ -26,13 +26,19 @@ import logging
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, EntityCategory
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CROSSFEED_NAMES, DOMAIN, EFFECT_STYLE_NAMES, OUTPUT_NAMES, input_names_for
+from .const import (
+    DOMAIN,
+    EFFECT_STYLE_NAMES,
+    OUTPUT_NAMES,
+    crossfeed_names_for,
+    input_names_for,
+)
 from .coordinator import LuxsinCoordinator
-from .entity import LuxsinEntity, has_fields
+from .entity import LuxsinEntity, entity_unique_id, has_fields
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,7 +93,7 @@ class LuxsinInputSelect(LuxsinEntity, SelectEntity):
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_input_select"
+        self._attr_unique_id = entity_unique_id(entry, "input_select")
 
     @property
     def options(self) -> list[str]:
@@ -121,7 +127,7 @@ class LuxsinOutputSelect(LuxsinEntity, SelectEntity):
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_output_select"
+        self._attr_unique_id = entity_unique_id(entry, "output_select")
 
     @property
     def current_option(self) -> str | None:
@@ -158,7 +164,7 @@ class LuxsinVuStyleSelect(LuxsinEntity, SelectEntity):
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_vu_select"
+        self._attr_unique_id = entity_unique_id(entry, "vu_select")
 
     @property
     def current_option(self) -> str | None:
@@ -198,7 +204,7 @@ class LuxsinPeqSelect(LuxsinEntity, SelectEntity):
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_peq_select"
+        self._attr_unique_id = entity_unique_id(entry, "peq_select")
 
     @property
     def _profiles(self) -> list[dict]:
@@ -245,7 +251,7 @@ class LuxsinEffectStyleSelect(LuxsinEntity, SelectEntity):
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_effect_value_select"
+        self._attr_unique_id = entity_unique_id(entry, "effect_value_select")
 
     @property
     def current_option(self) -> str | None:
@@ -265,7 +271,7 @@ class LuxsinEffectStyleSelect(LuxsinEntity, SelectEntity):
 
 
 class LuxsinCrossfeedSelect(LuxsinEntity, SelectEntity):
-    """Choose the crossfeed_value BS2B preset (0..2).
+    """Choose a crossfeed preset (X8: 0..2; X9: 0..3 including Custom).
 
     Child of Crossfeed (crossfeed_enable), which is itself a child of
     Effects (audio_enable) - unavailable unless both are on.
@@ -273,13 +279,16 @@ class LuxsinCrossfeedSelect(LuxsinEntity, SelectEntity):
 
     _attr_name = "Crossfeed value"
     _attr_icon = "mdi:swap-horizontal"
-    _attr_options = CROSSFEED_NAMES
     _attr_entity_category = EntityCategory.CONFIG
     _parent_params = ("audio_enable", "crossfeed_enable")
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_crossfeed_value_select"
+        self._attr_unique_id = entity_unique_id(entry, "crossfeed_value_select")
+
+    @property
+    def options(self) -> list[str]:
+        return crossfeed_names_for(self.coordinator.model_key)
 
     @property
     def current_option(self) -> str | None:
@@ -287,12 +296,14 @@ class LuxsinCrossfeedSelect(LuxsinEntity, SelectEntity):
         if raw is None or raw.get("crossfeed_value") is None:
             return None
         idx = raw["crossfeed_value"]
-        if 0 <= idx < len(CROSSFEED_NAMES):
-            return CROSSFEED_NAMES[idx]
-        return f"Crossfeed {idx}"  # e.g. X9's "Custom" (3), not exposed as an option
+        names = self.options
+        if 0 <= idx < len(names):
+            return names[idx]
+        return f"Crossfeed {idx}"
 
     async def async_select_option(self, option: str) -> None:
-        if option not in CROSSFEED_NAMES:
+        names = self.options
+        if option not in names:
             _LOGGER.warning("Unknown Luxsin crossfeed preset: %s", option)
             return
-        await self.coordinator.async_apply_param("crossfeed_value", CROSSFEED_NAMES.index(option))
+        await self.coordinator.async_apply_param("crossfeed_value", names.index(option))

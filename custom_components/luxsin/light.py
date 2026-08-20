@@ -11,16 +11,16 @@ its own GET request - there is no combined
 from __future__ import annotations
 
 import logging
+from typing import ClassVar
 
 from homeassistant.components.light import ATTR_RGB_COLOR, ColorMode, LightEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import LuxsinCoordinator
-from .entity import LuxsinEntity, has_fields
+from .entity import LuxsinEntity, entity_unique_id, has_fields
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,11 +43,11 @@ class LuxsinLedLight(LuxsinEntity, LightEntity):
 
     _attr_name = "LED Light"
     _attr_color_mode = ColorMode.RGB
-    _attr_supported_color_modes = {ColorMode.RGB}
+    _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.RGB}
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_led"
+        self._attr_unique_id = entity_unique_id(entry, "led")
 
     @property
     def is_on(self) -> bool | None:

@@ -40,13 +40,12 @@ from homeassistant.components.media_player import (
     MediaPlayerState,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, MAX_VOLUME, OUTPUT_NAMES, input_names_for
 from .coordinator import LuxsinCoordinator
-from .entity import LuxsinEntity
+from .entity import LuxsinEntity, entity_unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,7 +73,7 @@ class LuxsinMediaPlayer(LuxsinEntity, MediaPlayerEntity):
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_media_player"
+        self._attr_unique_id = entity_unique_id(entry, "media_player")
 
     @property
     def source_list(self) -> list[str]:
@@ -90,7 +89,7 @@ class LuxsinMediaPlayer(LuxsinEntity, MediaPlayerEntity):
             | MediaPlayerEntityFeature.TURN_OFF
         )
         raw = self.coordinator.data.raw if self.coordinator.data else None
-        if raw is not None and "bt_status" in raw:
+        if raw is not None and "bt_status" in raw and self._is_bluetooth_source:
             features |= (
                 MediaPlayerEntityFeature.PLAY
                 | MediaPlayerEntityFeature.PAUSE
@@ -180,20 +179,26 @@ class LuxsinMediaPlayer(LuxsinEntity, MediaPlayerEntity):
         await self.coordinator.async_apply_output(OUTPUT_NAMES.index(sound_mode))
 
     async def async_media_play(self) -> None:
+        if not self._is_bluetooth_source:
+            return
         raw = self.coordinator.data.raw if self.coordinator.data else None
         if raw is not None and raw.get("bt_status") != _BT_STATUS_PLAYING:
             await self.coordinator.async_send_command("bt_play", 1)
 
     async def async_media_pause(self) -> None:
+        if not self._is_bluetooth_source:
+            return
         raw = self.coordinator.data.raw if self.coordinator.data else None
         if raw is not None and raw.get("bt_status") == _BT_STATUS_PLAYING:
             await self.coordinator.async_send_command("bt_play", 1)
 
     async def async_media_next_track(self) -> None:
-        await self.coordinator.async_send_command("bt_next", 1)
+        if self._is_bluetooth_source:
+            await self.coordinator.async_send_command("bt_next", 1)
 
     async def async_media_previous_track(self) -> None:
-        await self.coordinator.async_send_command("bt_next", 0)
+        if self._is_bluetooth_source:
+            await self.coordinator.async_send_command("bt_next", 0)
 
     async def async_turn_off(self) -> None:
         """Power off the device.

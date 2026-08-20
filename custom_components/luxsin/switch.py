@@ -28,13 +28,13 @@ import logging
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, EntityCategory
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import LuxsinCoordinator
-from .entity import LuxsinEntity, has_fields
+from .entity import LuxsinEntity, entity_unique_id, has_fields
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class _LuxsinParamSwitch(LuxsinEntity, SwitchEntity):
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_{self._param}"
+        self._attr_unique_id = entity_unique_id(entry, self._param)
 
     @property
     def is_on(self) -> bool | None:

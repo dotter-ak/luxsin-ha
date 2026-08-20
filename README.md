@@ -56,10 +56,17 @@ Or manually:
 ### Manual
 
 1. Download the [latest release](https://github.com/dotter-ak/luxsin-ha/releases/latest).
-2. Copy `custom_components/luxsin-ha` into your Home Assistant `custom_components` directory.
+2. Copy `custom_components/luxsin` into your Home Assistant `custom_components` directory.
 3. **Restart Home Assistant**.
 
 ## Changelog
+- v 0.3.0
+  - Added safe network-address reconfiguration and MAC-based device identity.
+    Existing entity IDs are preserved during migration.
+  - Bluetooth transport controls are now exposed only while Bluetooth is the
+    active input.
+  - Added the X9 Custom crossfeed option.
+  - Fixed the manual installation path.
 - v 0.2.1
   - Prevented invalid text in PEQ profile metadata from blocking setup.
 - v 0.2.0

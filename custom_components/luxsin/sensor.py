@@ -10,13 +10,12 @@ import logging
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import LuxsinCoordinator
-from .entity import LuxsinEntity, has_fields
+from .entity import LuxsinEntity, entity_unique_id, has_fields
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ class LuxsinAudioFormatSensor(LuxsinEntity, SensorEntity):
 
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{DOMAIN}_{entry.data[CONF_HOST]}_audio_format"
+        self._attr_unique_id = entity_unique_id(entry, "audio_format")
 
     @property
     def native_value(self) -> str | None:

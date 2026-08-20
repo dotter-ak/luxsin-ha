@@ -13,6 +13,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+pytest_plugins = "pytest_homeassistant_custom_component"
+
 _LUXSIN_DIR = Path(__file__).resolve().parents[1] / "custom_components" / "luxsin"
 
 

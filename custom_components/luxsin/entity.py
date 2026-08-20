@@ -11,7 +11,7 @@ from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, format
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import CONF_ENTITY_ID_PREFIX, DOMAIN
 from .coordinator import LuxsinCoordinator
 
 
@@ -33,13 +33,14 @@ class LuxsinEntity(CoordinatorEntity[LuxsinCoordinator]):
     def __init__(self, coordinator: LuxsinCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         host = entry.data[CONF_HOST]
+        identity = entry.data.get(CONF_ENTITY_ID_PREFIX, host)
         raw = coordinator.data.raw if coordinator.data and coordinator.data.raw else {}
 
         mac = raw.get("mac")
         connections = {(CONNECTION_NETWORK_MAC, format_mac(mac))} if mac else set()
 
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, host)},
+            identifiers={(DOMAIN, identity)},
             connections=connections,
             name=f"Luxsin ({host})",
             manufacturer="Luxsin",
@@ -57,6 +58,17 @@ class LuxsinEntity(CoordinatorEntity[LuxsinCoordinator]):
         if raw is None:
             return False
         return all(bool(raw.get(param)) for param in self._parent_params)
+
+
+def entity_unique_id(entry: ConfigEntry, suffix: str) -> str:
+    """Build a stable entity unique ID while preserving legacy IDs.
+
+    Entries created before config-flow version 2 use their original host as
+    the stored prefix. Reconfiguring such an entry to a new address therefore
+    does not create replacement entities or break existing automations.
+    """
+    prefix = entry.data.get(CONF_ENTITY_ID_PREFIX, entry.data[CONF_HOST])
+    return f"{DOMAIN}_{prefix}_{suffix}"
 
 
 def has_fields(raw: dict | None, *fields: str) -> bool:

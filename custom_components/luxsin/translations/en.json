@@ -7,13 +7,23 @@
         "data": {
           "host": "Host"
         }
+      },
+      "reconfigure": {
+        "title": "Update Luxsin network address",
+        "description": "Enter the new IP address or hostname of your Luxsin amplifier.",
+        "data": {
+          "host": "Host"
+        }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to the device. Check the IP address and that it is powered on and reachable."
+      "cannot_connect": "Failed to connect to the device. Check the IP address and that it is powered on and reachable.",
+      "wrong_device": "The address belongs to a different Luxsin device.",
+      "already_configured": "This Luxsin device is already configured."
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device is already configured",
+      "reconfigure_successful": "Network address updated successfully"
     }
   }
 }

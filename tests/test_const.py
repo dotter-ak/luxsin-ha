@@ -70,3 +70,15 @@ def test_x8_and_x9_input_lists_differ() -> None:
     """Regression guard: if someone "simplifies" this back to one shared
     list, this test should fail loudly."""
     assert _const.input_names_for("x8") != _const.input_names_for("x9")
+
+
+def test_crossfeed_options_are_model_specific() -> None:
+    assert _const.crossfeed_names_for("x8") == _const.CROSSFEED_NAMES
+    assert _const.crossfeed_names_for("x9") == [*_const.CROSSFEED_NAMES, "Custom"]
+
+
+def test_normalize_device_id() -> None:
+    assert _const.normalize_device_id("AA:BB:CC:DD:EE:FF") == "aabbccddeeff"
+    assert _const.normalize_device_id("aa-bb-cc-dd-ee-ff") == "aabbccddeeff"
+    assert _const.normalize_device_id(None) is None
+    assert _const.normalize_device_id("not-a-mac") is None

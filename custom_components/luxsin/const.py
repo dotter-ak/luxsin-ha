@@ -2,6 +2,26 @@
 
 DOMAIN = "luxsin"
 
+# Stored config-entry metadata. ``entity_id_prefix`` deliberately remains
+# unchanged when the device host changes: existing installations keep the
+# host-based entity unique IDs they were created with, while new installations
+# use the device MAC as their stable prefix.
+CONF_DEVICE_ID = "device_id"
+CONF_ENTITY_ID_PREFIX = "entity_id_prefix"
+
+
+def normalize_device_id(mac: str | None) -> str | None:
+    """Normalize a device MAC for config-entry identity comparisons."""
+    if not isinstance(mac, str):
+        return None
+    normalized = "".join(character for character in mac.lower() if character.isalnum())
+    if len(normalized) != 12 or any(
+        character not in "0123456789abcdef" for character in normalized
+    ):
+        return None
+    return normalized
+
+
 # How often to poll /msgCount (cheap change counter). The full status
 # (/dev/info.cgi?action=sync, which includes PEQ presets) is only fetched
 # when the counter changes.
@@ -119,13 +139,25 @@ EFFECT_STYLE_NAMES = [
 
 # Crossfeed (crossfeed_value). Both documents list 3 named BS2B presets
 # (0..2); X9-API-README.md additionally defines a 4th "Custom" preset (3),
-# driven by crossfeed_custom_fc/crossfeed_custom_gain, which isn't exposed
-# as a select option here.
+# driven by crossfeed_custom_fc/crossfeed_custom_gain. The model-specific
+# helper below exposes that fourth option only for X9.
 CROSSFEED_NAMES = [
     "BS2B default (700 Hz, 4.5 dB)",
     "BS2B popular (700 Hz, 6 dB)",
     "BS2B relax (650 Hz, 9.5 dB)",
 ]
+
+
+def crossfeed_names_for(model_key: str) -> list[str]:
+    """Return the model-specific crossfeed presets.
+
+    X9 additionally exposes firmware preset 3, ``Custom``. X8 only accepts
+    the three predefined BS2B presets.
+    """
+    if model_key == "x9":
+        return [*CROSSFEED_NAMES, "Custom"]
+    return CROSSFEED_NAMES
+
 
 # Stereo width (width_value): raw 0..100, plain integer - the firmware
 # maps it internally as 0.02 * value for the DSP, but that scaling isn't
