@@ -71,13 +71,27 @@ class LuxsinCoordinator(DataUpdateCoordinator[LuxsinStatus]):
             raise UpdateFailed(str(err)) from err
 
     async def async_apply_volume(self, volume: int) -> None:
-        """Write volume and optimistically update local state."""
-        await self.client.async_set_param("volume", volume)
+        """Publish volume immediately, then write it to the device.
+
+        Some firmware builds apply a setting before completing the HTTP
+        response. Updating coordinator data first keeps Home Assistant and
+        ESPHome responsive even when that response is slow or times out.
+        """
         if self.data is not None:
             self.data.volume = volume
             if self.data.raw is not None:
                 self.data.raw["volume"] = volume
             self.async_set_updated_data(self.data)
+
+        try:
+            await self.client.async_set_param("volume", volume)
+        except LuxsinError:
+            # A device may have applied the setting even if its HTTP response
+            # failed. Force the next poll to fetch authoritative full status
+            # instead of trusting msgCount or rolling back speculatively.
+            if self.data is not None and self.data.volume == volume:
+                self._polls_since_full_sync = FORCE_FULL_SYNC_EVERY
+            raise
 
     async def async_apply_input(self, index: int) -> None:
         await self.client.async_set_param("input", index)

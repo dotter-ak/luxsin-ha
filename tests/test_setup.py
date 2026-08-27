@@ -1,10 +1,11 @@
 """End-to-end config-entry setup and unload tests."""
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import patch
 
 import pytest
-from homeassistant.const import CONF_HOST, STATE_UNAVAILABLE
+from homeassistant.const import ATTR_ENTITY_ID, CONF_HOST, STATE_UNAVAILABLE
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -76,3 +77,76 @@ async def test_setup_and_unload_keep_legacy_entity_unique_id(hass) -> None:
     unloaded_state = hass.states.get(entity_id)
     assert unloaded_state is not None
     assert unloaded_state.state == STATE_UNAVAILABLE
+
+
+async def test_volume_service_updates_state_before_device_response(hass) -> None:
+    status = LuxsinStatus(
+        volume=100,
+        input=0,
+        output=0,
+        raw={
+            "device": "Luxsin-X8",
+            "mac": "AA:BB:CC:DD:EE:FF",
+            "volume": 100,
+            "input": 0,
+            "output": 0,
+        },
+        peq_profiles=[],
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        data={CONF_HOST: "luxsin.local", CONF_ENTITY_ID_PREFIX: "luxsin.local"},
+    )
+    entry.add_to_hass(hass)
+    write_started = asyncio.Event()
+    release_write = asyncio.Event()
+
+    async def delayed_write(param: str, value: int) -> None:
+        write_started.set()
+        await release_write.wait()
+
+    with (
+        patch(
+            "custom_components.luxsin.api.LuxsinClient.async_get_msg_count",
+            return_value=1,
+        ),
+        patch(
+            "custom_components.luxsin.api.LuxsinClient.async_get_full_status",
+            return_value=status,
+        ),
+        patch(
+            "custom_components.luxsin.api.LuxsinClient.async_set_param",
+            side_effect=delayed_write,
+        ),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        registry = er.async_get(hass)
+        media_player_id = registry.async_get_entity_id(
+            "media_player", DOMAIN, "luxsin_luxsin.local_media_player"
+        )
+        sensor_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, "luxsin_luxsin.local_volume_raw"
+        )
+        assert media_player_id is not None
+        assert sensor_id is not None
+
+        service_call = asyncio.create_task(
+            hass.services.async_call(
+                "media_player",
+                "volume_set",
+                {ATTR_ENTITY_ID: media_player_id, "volume_level": 0.75},
+                blocking=True,
+            )
+        )
+        await write_started.wait()
+        await asyncio.sleep(0)
+
+        assert not service_call.done()
+        assert hass.states.get(media_player_id).attributes["volume_level"] == 0.75
+        assert hass.states.get(sensor_id).state == "150"
+
+        release_write.set()
+        await service_call

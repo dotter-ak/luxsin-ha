@@ -4,13 +4,15 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 from homeassistant.components.media_player import MediaPlayerEntityFeature
-from homeassistant.const import CONF_HOST
+from homeassistant.components.sensor import SensorStateClass
+from homeassistant.const import CONF_HOST, EntityCategory
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.luxsin.api import LuxsinStatus
 from custom_components.luxsin.const import CONF_ENTITY_ID_PREFIX, DOMAIN
 from custom_components.luxsin.media_player import LuxsinMediaPlayer
 from custom_components.luxsin.select import LuxsinCrossfeedSelect
+from custom_components.luxsin.sensor import LuxsinVolumeRawSensor
 
 
 def _entry(prefix: str = "legacy-host") -> MockConfigEntry:
@@ -90,3 +92,39 @@ def test_legacy_entity_unique_id_survives_host_change() -> None:
     entity = LuxsinMediaPlayer(coordinator, _entry("original-host"))
 
     assert entity.unique_id == "luxsin_original-host_media_player"
+
+
+def test_volume_raw_sensor_exposes_native_scale() -> None:
+    coordinator = _coordinator(model_key="x8", input_index=0)
+    entity = LuxsinVolumeRawSensor(coordinator, _entry())
+
+    for volume in (0, 100, 200):
+        coordinator.data.volume = volume
+        assert entity.native_value == volume
+
+    assert entity.native_unit_of_measurement is None
+    assert entity.state_class is SensorStateClass.MEASUREMENT
+    assert entity.suggested_display_precision == 0
+    assert entity.entity_category is EntityCategory.DIAGNOSTIC
+    assert entity.entity_registry_enabled_default
+
+
+def test_volume_raw_sensor_handles_missing_volume() -> None:
+    coordinator = _coordinator(model_key="x8", input_index=0)
+    coordinator.data.volume = None
+    entity = LuxsinVolumeRawSensor(coordinator, _entry())
+
+    assert entity.native_value is None
+    assert entity.available
+
+
+def test_volume_raw_sensor_follows_coordinator_availability() -> None:
+    coordinator = _coordinator(model_key="x8", input_index=0)
+    entity = LuxsinVolumeRawSensor(coordinator, _entry())
+
+    coordinator.last_update_success = False
+    assert not entity.available
+
+    coordinator.last_update_success = True
+    coordinator.data = None
+    assert not entity.available

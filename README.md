@@ -60,6 +60,9 @@ Or manually:
 3. **Restart Home Assistant**.
 
 ## Changelog
+- v 0.3.1
+  - Added diagnostic sensor exposing the native Luxsin
+    volume level (`0…200`) for use by ESPHome and other automations.
 - v 0.3.0
   - Added safe network-address reconfiguration and MAC-based device identity.
     Existing entity IDs are preserved during migration.
